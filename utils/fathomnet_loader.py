@@ -1,6 +1,5 @@
 import os
-import numpy as np
-import random
+import torch
 from PIL import Image
 
 
@@ -35,7 +34,11 @@ class FathomNetLoader(data.Dataset):
         coco = self.coco
         img_id = self.ids[index]
         ann_ids = coco.getAnnIds(imgIds=img_id)
-        target = coco.loadAnns(ann_ids)
+        target = coco.loadAnns(ann_ids)[0]['category_id']
+        target = int(target)
+        
+        label = torch.zeros(self.n_classes)
+        label[target] = 1
 
         path = coco.loadImgs(img_id)[0]['file_name']
 
@@ -44,9 +47,9 @@ class FathomNetLoader(data.Dataset):
             img = self.transform(img)
 
         if self.target_transform is not None:
-            target = self.target_transform(target)
+            label = self.target_transform(label)
 
-        return img, target[0]['category_id']
+        return img, label
 
     def __len__(self):
         return len(self.ids)
