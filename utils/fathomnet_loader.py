@@ -46,7 +46,7 @@ class FathomNetLoader(data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return img, target
+        return img, target[0]['category_id']
 
     def __len__(self):
         return len(self.ids)
