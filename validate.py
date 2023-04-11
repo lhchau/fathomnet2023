@@ -6,6 +6,7 @@ from sklearn import metrics
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.utils import data
+from tqdm import tqdm
 
 from utils.fathomnet_loader import *
 from utils.collate_fn import *
@@ -20,7 +21,9 @@ def validate(args, model, clsfier, val_loader):
     gts = {i:[] for i in range(0, args.n_classes)}
     preds = {i:[] for i in range(0, args.n_classes)}
     with torch.no_grad():
-        for images, labels in val_loader:
+        for images, labels in tqdm(val_loader):
+            labels = torch.stack(labels, dim=0)
+            
             images = Variable(images.cuda())
             labels = Variable(labels.cuda().float())
             outputs = model(images)
@@ -51,9 +54,9 @@ if __name__ == '__main__':
                         help='Dataset to use [\'pascal, coco, nus-wide\']')
     parser.add_argument('--load_path', nargs='?', type=str, default='./saved_models/',
                         help='Model path')
-    parser.add_argument('--batch_size', nargs='?', type=int, default=20,
+    parser.add_argument('--batch_size', nargs='?', type=int, default=2,
                         help='Batch Size')
-    parser.add_argument('--n_classes', nargs='?', type=int, default=20)
+    parser.add_argument('--n_classes', nargs='?', type=int, default=290)
     args = parser.parse_args()
 
     # # Setup Dataloader
@@ -70,12 +73,12 @@ if __name__ == '__main__':
     # ])
 
     if args.dataset == 'coco':
-        loader = FathomNetLoader()
+        val_data = FathomNetLoader(root='./datasets/train', annFile='./datasets/val.json')
     else:
         raise AssertionError
 
-    args.n_classes = loader.n_classes
-    val_loader = data.DataLoader(loader, batch_size=args.batch_size, num_workers=8, shuffle=False, collate_fn=coco_collate)
+    args.n_classes = val_data.n_classes
+    val_loader = data.DataLoader(val_data, batch_size=args.batch_size, num_workers=8, shuffle=False, collate_fn=coco_collate)
 
     if args.arch == "resnet101":
         orig_resnet = torchvision.models.resnet101(pretrained=True)

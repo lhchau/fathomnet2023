@@ -5,6 +5,7 @@ import torchvision
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.utils import data
+from tqdm import tqdm
 
 import validate
 
@@ -18,14 +19,14 @@ def train():
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
-    normalize = torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-    img_transform = torchvision.transforms.Compose([
-            torchvision.transforms.RandomHorizontalFlip(),
-            torchvision.transforms.RandomResizedCrop((256, 256), scale=(0.5, 2.0)),
-            torchvision.transforms.ToTensor(),
-            normalize,
-        ])
+    # normalize = torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                                  std=[0.229, 0.224, 0.225])
+    # img_transform = torchvision.transforms.Compose([
+    #         torchvision.transforms.RandomHorizontalFlip(),
+    #         torchvision.transforms.RandomResizedCrop((256, 256), scale=(0.5, 2.0)),
+    #         torchvision.transforms.ToTensor(),
+    #         normalize,
+    #     ])
 
     # label_transform = torchvision.transforms.Compose([
     #         ToLabel(),
@@ -39,7 +40,7 @@ def train():
 
     if args.dataset == "coco":
         loader = FathomNetLoader()
-        val_data = FathomNetLoader(root='./datasets/eval', annFile='./datasets/eval_annotations.json')
+        val_data = FathomNetLoader(root='./datasets/train', annFile='./datasets/val.json')
     else:
         raise AssertionError
 
@@ -79,7 +80,9 @@ def train():
     model.train()
     clsfier.train()
     for epoch in range(args.n_epoch):
-        for i, (images, labels) in enumerate(trainloader):
+        for i, (images, labels) in tqdm(enumerate(trainloader)):
+            labels = torch.stack(labels, dim=0)
+            
             images = Variable(images.cuda())
             labels = Variable(labels.cuda().float())
 
@@ -103,11 +106,11 @@ if __name__ == '__main__':
                         help='Architecture to use densenet|resnet101')
     parser.add_argument('--dataset', type=str, default='pascal',
                         help='Dataset to use pascal|coco|nus-wide')
-    parser.add_argument('--n_epoch', type=int, default=50,
+    parser.add_argument('--n_epoch', type=int, default=1,
                         help='# of the epochs')
-    parser.add_argument('--n_classes', type=int, default=20,
+    parser.add_argument('--n_classes', type=int, default=290,
                         help='# of classes')
-    parser.add_argument('--batch_size', type=int, default=200,
+    parser.add_argument('--batch_size', type=int, default=2,
                         help='Batch Size')
     # batch_size 320 for resenet101
     parser.add_argument('--l_rate', type=float, default=1e-4,

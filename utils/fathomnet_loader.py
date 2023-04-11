@@ -6,7 +6,7 @@ from PIL import Image
 from torch.utils import data
 
 class FathomNetLoader(data.Dataset):
-    def __init__(self, root='./datasets/train', annFile="./datasets/train_annotations.json", transform=None, target_transform=None):
+    def __init__(self, root='./datasets/train', annFile="./datasets/train.json", transform=None, target_transform=None):
         super().__init__()
         """
         Args:
