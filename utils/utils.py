@@ -1,81 +1,134 @@
-def download_image_by_url(image_url):
-    with urllib.request.urlopen(image_url) as url:
-        img = Image.open(url)
-        url.close()
-    return img
+import numpy as np
+import torch.nn as nn
+import sklearn.metrics as sk
+import sklearn.neighbors
+import sklearn.ensemble
+import time
+import torch
+from torch.autograd import Variable
+import os.path
 
-def load_image(path):
-    return Image.open(path)
-
-def get_image_path_by_id(root, image_id):
-    path = Path(root) / data.loc[image_id]['file_name']
-    path.with_suffix('.jpg')
-    
-def load_image_by_id(data, image_id, compressed=True):
-    file_name = data.loc[image_id]['file_name']
-    if compressed:
-        file_name = change_file_ext(file_name)
-    
-    return load_image(file_name, compressed)
-
-def draw_rectangle(image, xy, color='red'):
-    img = ImageDraw.Draw(image) 
-    img.rectangle(xy, outline=color, width=3)
-    return image
-
-def create_bboxes(annotation_data):
-    df = annotation_data.copy()
-    df['bbox'] = df['bbox'].apply(ast.literal_eval)
-
-    groupby_image = df.groupby(by='image_id')
-    df = groupby_image['bbox'].apply(list).reset_index(name='bboxes').set_index('image_id')
-    df['category_ids'] = groupby_image['category_id'].apply(list)  
-    return df
-
-def create_yolo_dataset(
-    image_data,
-    annotation_data,
-    data_type='train', 
-    image_root=Cfg.IMAGES_ROOT, 
-    dataset_root=Cfg.DATASET_ROOT
-):
-    bboxes_data = create_bboxes(annotation_data)
-    image_ids = image_data.index
-    
-    for image_id in tqdm(image_ids, total=len(image_ids)):
-        bounding_bboxes = bboxes_data['bboxes'].loc[image_id]
-        category_ids = bboxes_data['category_ids'].loc[image_id]
-
-        image_row = image_data.loc[image_id]
-        image_width = image_row['width']
-        image_height = image_row['height']
+recall_level_default = 0.95
         
-        file_name = Path(image_row['file_name']).with_suffix('.jpg')
-        source_image_path = Cfg.TRAIN_IMAGES_ROOT / file_name
-        target_image_path = dataset_root / f'images/{data_type}/{file_name}'
-        label_path = (dataset_root / f'labels/{data_type}/{file_name}').with_suffix('.txt')
-        
-        #print(file_name)
-        
-        yolo_data = []
-        for bbox, category in zip(bounding_bboxes, category_ids):
-            x = bbox[0]
-            y = bbox[1]
-            w = bbox[2]
-            h = bbox[3]
-            x_center = x + w/2
-            y_center = y + h/2
-            x_center /= image_width
-            y_center /= image_height
-            w /= image_width
-            h /= image_height
-            
-            yolo_data.append([category, x_center, y_center, w, h])
+class ToLabel(object):
+     def __call__(self, inputs):
+        return (torch.from_numpy(np.array(inputs)).long())
 
-        yolo_data = np.array(yolo_data)
 
-        # Create YOLO lable file
-        np.savetxt(label_path, yolo_data, fmt=["%d", "%f", "%f", "%f", "%f"])
+def stable_cumsum(arr, rtol=1e-05, atol=1e-08):
+    """Use high precision for cumsum and check that final value matches sum
+    Parameters
+    ----------
+    arr : array-like
+        To be cumulatively summed as flat
+    rtol : float
+        Relative tolerance, see ``np.allclose``
+    atol : float
+        Absolute tolerance, see ``np.allclose``
+    """
+    out = np.cumsum(arr, dtype=np.float64)
+    expected = np.sum(arr, dtype=np.float64)
+    if not np.allclose(out[-1], expected, rtol=rtol, atol=atol):
+        raise RuntimeError('cumsum was found to be unstable: '
+                           'its last element does not correspond to sum')
+    return out
 
-        # Copy image file
-        shutil.copy(source_image_path, target_image_path)
+def fpr_and_fdr_at_recall(y_true, y_score, recall_level=recall_level_default, pos_label=None):
+    classes = np.unique(y_true)
+    if (pos_label is None and
+            not (np.array_equal(classes, [0, 1]) or
+                     np.array_equal(classes, [-1, 1]) or
+                     np.array_equal(classes, [0]) or
+                     np.array_equal(classes, [-1]) or
+                     np.array_equal(classes, [1]))):
+        raise ValueError("Data is not binary and pos_label is not specified")
+    elif pos_label is None:
+        pos_label = 1.
+
+    # make y_true a boolean vector
+    y_true = (y_true == pos_label)
+
+    # sort scores and corresponding truth values
+    desc_score_indices = np.argsort(y_score, kind="mergesort")[::-1]
+    y_score = y_score[desc_score_indices]
+    y_true = y_true[desc_score_indices]
+
+    # y_score typically has many tied values. Here we extract
+    # the indices associated with the distinct values. We also
+    # concatenate a value for the end of the curve.
+    distinct_value_indices = np.where(np.diff(y_score))[0]
+    threshold_idxs = np.r_[distinct_value_indices, y_true.size - 1]
+
+    # accumulate the true positives with decreasing threshold
+    tps = stable_cumsum(y_true)[threshold_idxs]
+    fps = 1 + threshold_idxs - tps      # add one because of zero-based indexing
+
+    thresholds = y_score[threshold_idxs]
+
+    recall = tps / tps[-1]
+
+    last_ind = tps.searchsorted(tps[-1])
+    sl = slice(last_ind, None, -1)      # [last_ind::-1]
+    recall, fps, tps, thresholds = np.r_[recall[sl], 1], np.r_[fps[sl], 0], np.r_[tps[sl], 0], thresholds[sl]
+
+    cutoff = np.argmin(np.abs(recall - recall_level))
+    if np.array_equal(classes, [1]):
+        return thresholds[cutoff]  # return threshold
+
+    return fps[cutoff] / (np.sum(np.logical_not(y_true))), thresholds[cutoff]
+
+def get_measures(_pos, _neg, recall_level=recall_level_default):
+    pos = np.array(_pos[:]).reshape((-1, 1))
+    neg = np.array(_neg[:]).reshape((-1, 1))
+    examples = np.squeeze(np.vstack((pos, neg)))
+    labels = np.zeros(len(examples), dtype=np.int32)
+    labels[:len(pos)] += 1
+
+    auroc = sk.roc_auc_score(labels, examples)
+    aupr = sk.average_precision_score(labels, examples)
+    fpr, threshould = fpr_and_fdr_at_recall(labels, examples, recall_level)
+
+    return auroc, aupr, fpr, threshould
+
+def print_measures(auroc, aupr, fpr, ood, method, recall_level=recall_level_default):
+    print('\t\t\t' + ood+'_'+method)
+    print('FPR{:d}:\t\t\t{:.2f}'.format(int(100 * recall_level), 100 * fpr))
+    print('AUROC: \t\t\t{:.2f}'.format(100 * auroc))
+    print('AUPR:  \t\t\t{:.2f}'.format(100 * aupr))
+
+def get_and_print_results(out_score, in_score, ood, method):
+    aurocs, auprs, fprs = [], [], []
+    measures = get_measures(out_score, in_score)
+    aurocs.append(measures[0]); auprs.append(measures[1]); fprs.append(measures[2])
+
+    auroc = np.mean(aurocs); aupr = np.mean(auprs); fpr = np.mean(fprs)
+
+    print_measures(auroc, aupr, fpr, ood, method)
+    return auroc, aupr, fpr
+
+def get_localoutlierfactor_scores(val, test, out_scores):
+    scorer = sklearn.neighbors.LocalOutlierFactor(novelty=True)
+    print("fitting validation set")
+    start = time.time()
+    scorer.fit(val)
+    end = time.time()
+    print("fitting took ", end - start)
+    val = np.asarray(val)
+    test = np.asarray(test)
+    out_scores = np.asarray(out_scores)
+    print(val.shape, test.shape, out_scores.shape)
+    return scorer.score_samples(np.vstack((test, out_scores)))
+
+
+def get_isolationforest_scores(val, test, out_scores):
+    scorer = sklearn.ensemble.IsolationForest()
+    print("fitting validation set")
+    start = time.time()
+    scorer.fit(val)
+    end = time.time()
+    print("fitting took ", end - start)
+    val = np.asarray(val)
+    test = np.asarray(test)
+    out_scores = np.asarray(out_scores)
+    print(val.shape, test.shape, out_scores.shape)
+    return scorer.score_samples(np.vstack((test, out_scores)))
