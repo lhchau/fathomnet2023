@@ -75,7 +75,7 @@ if __name__ == '__main__':
         raise AssertionError
 
     args.n_classes = loader.n_classes
-    val_loader = data.DataLoader(loader, batch_size=args.batch_size, num_workers=8, shuffle=False)
+    val_loader = data.DataLoader(loader, batch_size=args.batch_size, num_workers=8, shuffle=False, collate_fn=coco_collate)
 
     if args.arch == "resnet101":
         orig_resnet = torchvision.models.resnet101(pretrained=True)

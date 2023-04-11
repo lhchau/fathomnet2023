@@ -9,6 +9,8 @@ from torch.utils import data
 import validate
 
 from utils.fathomnet_loader import *
+from utils.collate_fn import *
+
 from models.simple_classifier import *
 
 def train():
@@ -42,8 +44,8 @@ def train():
         raise AssertionError
 
     args.n_classes = loader.n_classes
-    trainloader = data.DataLoader(loader, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True)
-    val_loader = data.DataLoader(val_data, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True)
+    trainloader = data.DataLoader(loader, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True, collate_fn=coco_collate)
+    val_loader = data.DataLoader(val_data, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True, collate_fn=coco_collate)
 
     print("number of images = ", len(loader))
     print("number of classes = ", args.n_classes, " architecture used = ", args.arch)
