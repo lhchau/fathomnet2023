@@ -21,3 +21,13 @@ Requirement:
 ```
 python3 train.py --arch densenet --dataset coco --save_dir ./saved_models/
 ```
+
+## Evaluation
+
+Models located: `./saved_models/coco/`
+
+[Download models](https://drive.google.com/drive/folders/1lpgsys6uvw0g0ir8eas3pvv4bbjvcuoj?usp=sharing)
+
+```
+python3 pred.py
+```
