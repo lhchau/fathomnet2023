@@ -94,8 +94,8 @@ def train():
 
             loss.backward()
             optimizer.step()
-        torch.save(model.module.state_dict(), args.save_dir + args.arch + ".pth")
-        torch.save(clsfier.module.state_dict(), args.save_dir + args.arch + 'clsfier' + ".pth")
+        torch.save(model.state_dict(), args.save_dir + args.arch + ".pth")
+        torch.save(clsfier.state_dict(), args.save_dir + args.arch + 'clsfier' + ".pth")
         mAP = validate.validate(args, model, clsfier, val_loader)
 
         print("Epoch [%d/%d] Loss: %.4f mAP: %.4f" % (epoch, args.n_epoch, loss.data, mAP))
