@@ -22,6 +22,8 @@ class FathomNetLoader(data.Dataset):
         self.ids = list(self.coco.imgs.keys())
         self.transform = transform
         self.target_transform = target_transform
+        self.path = ''
+        self.split = self.root[-4:]
     
     def __getitem__(self, index):
         """
@@ -33,14 +35,18 @@ class FathomNetLoader(data.Dataset):
         """
         coco = self.coco
         img_id = self.ids[index]
-        ann_ids = coco.getAnnIds(imgIds=img_id)
-        target = coco.loadAnns(ann_ids)[0]['category_id']
-        target = int(target)
-        
-        label = torch.zeros(self.n_classes)
-        label[target] = 1
+        if self.split == 'eval':
+            label = []
+        else:
+            ann_ids = coco.getAnnIds(imgIds=img_id)
+            target = coco.loadAnns(ann_ids)[0]['category_id']
+            target = int(target)
+            
+            label = torch.zeros(self.n_classes)
+            label[target] = 1
 
         path = coco.loadImgs(img_id)[0]['file_name']
+        self.path = path
 
         img = Image.open(os.path.join(self.root, path)).convert('RGB')
         if self.transform is not None:
