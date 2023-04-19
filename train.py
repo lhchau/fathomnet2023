@@ -6,6 +6,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torch.utils import data
 from tqdm import tqdm
+from torch.optim.lr_scheduler import OneCycleLR
 
 import validate
 
@@ -18,25 +19,6 @@ def train():
     args.save_dir += args.dataset + '/'
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
-
-    # normalize = torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-    #                                  std=[0.229, 0.224, 0.225])
-    # img_transform = torchvision.transforms.Compose([
-    #         torchvision.transforms.RandomHorizontalFlip(),
-    #         torchvision.transforms.RandomResizedCrop((256, 256), scale=(0.5, 2.0)),
-    #         torchvision.transforms.ToTensor(),
-    #         normalize,
-    #     ])
-
-    # label_transform = torchvision.transforms.Compose([
-    #         ToLabel(),
-    #     ])
-    # val_transform = torchvision.transforms.Compose([
-    #     torchvision.transforms.Resize((256, 256)),
-    #     torchvision.transforms.ToTensor(),
-    #     normalize
-    # ])
-
 
     if args.dataset == "coco":
         loader = FathomNetLoader()
@@ -69,16 +51,23 @@ def train():
         model = nn.DataParallel(model)
         clsfier = nn.DataParallel(clsfier)
 
-    optimizer = torch.optim.Adam([{'params': model.parameters(),'lr':args.l_rate/10},{'params': clsfier.parameters()}], lr=args.l_rate)
+    optimizer = torch.optim.Adam([{'params': model.parameters(),'lr':args.l_rate/10},
+                                  {'params': clsfier.parameters()}], lr=args.l_rate)
 
+    # define the scheduler
+    # scheduler = OneCycleLR(optimizer, max_lr=0.01, epochs=20, steps_per_epoch=len(trainloader))
+    
     if args.load:
         model.load_state_dict(torch.load(args.save_dir + args.arch + ".pth"))
         clsfier.load_state_dict(torch.load(args.save_dir + args.arch +'clsfier' + ".pth"))
         print("Model loaded!")
 
+    # unfreeze
     bceloss = nn.BCEWithLogitsLoss()
     model.train()
     clsfier.train()
+    
+    best_mAP = 0.0
     for epoch in range(args.n_epoch):
         for i, (images, labels) in tqdm(enumerate(trainloader)):
             labels = torch.stack(labels, dim=0)
@@ -94,9 +83,12 @@ def train():
 
             loss.backward()
             optimizer.step()
-        torch.save(model.state_dict(), args.save_dir + args.arch + ".pth")
-        torch.save(clsfier.state_dict(), args.save_dir + args.arch + 'clsfier' + ".pth")
         mAP = validate.validate(args, model, clsfier, val_loader)
+
+        if mAP > best_mAP:
+            best_mAP = mAP
+            torch.save(model.state_dict(), args.save_dir + args.arch + "_best.pth")
+            torch.save(clsfier.state_dict(), args.save_dir + args.arch + 'clsfier_best.pth')
 
         print("Epoch [%d/%d] Loss: %.4f mAP: %.4f" % (epoch, args.n_epoch, loss.data, mAP))
 
@@ -110,7 +102,7 @@ if __name__ == '__main__':
                         help='# of the epochs')
     parser.add_argument('--n_classes', type=int, default=290,
                         help='# of classes')
-    parser.add_argument('--batch_size', type=int, default=2,
+    parser.add_argument('--batch_size', type=int, default=80,
                         help='Batch Size')
     # batch_size 320 for resenet101
     parser.add_argument('--l_rate', type=float, default=1e-4,
