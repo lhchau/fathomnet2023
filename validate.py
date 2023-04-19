@@ -43,7 +43,7 @@ def validate(args, model, clsfier, val_loader):
         FinalMAPs.append(metrics.auc(recall, precision))
     # print(FinalMAPs)
 
-    return np.mean(FinalMAPs)
+    return np.nanmean(FinalMAPs)
 
 
 if __name__ == '__main__':

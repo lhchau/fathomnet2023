@@ -3,6 +3,7 @@ import torchvision
 import torch.nn as nn
 import pandas as pd
 from tqdm import tqdm
+import argparse
 
 from models.simple_classifier import *
 from utils.fathomnet_loader import *
@@ -10,13 +11,26 @@ from utils.collate_fn import *
 
 to_np = lambda x: x.data.cpu().numpy()
 
-model_dict = torch.load('./saved_models/coco/densenet_bs80_epoch30.pth')
-clsfier_dict = torch.load('./saved_models/coco/densenetclsfier_bs80_epoch30.pth')
+parser = argparse.ArgumentParser(description='Hyperparams')
+parser.add_argument('--arch', type=str, default='densenet',
+                    help='Architecture to use densenet|resnet101')
 
-orig_densenet = torchvision.models.densenet121(pretrained=True)
-features = list(orig_densenet.features)
-model = nn.Sequential(*features, nn.ReLU(inplace=True))
-clsfier = SimpleClassifier(1024, 290)
+args = parser.parse_args()
+
+if args.arch == "resnet101":
+    model_dict = torch.load('./saved_models/coco/resnet101_best.pth')
+    clsfier_dict = torch.load('./saved_models/coco/resnet101clsfier_best.pth')
+    orig_resnet = torchvision.models.resnet101(pretrained=True)
+    features = list(orig_resnet.children())
+    model= nn.Sequential(*features[0:8])
+    clsfier = SimpleClassifier(2048, args.n_classes)
+elif args.arch == "densenet":
+    model_dict = torch.load('./saved_models/coco/densenet_best.pth')
+    clsfier_dict = torch.load('./saved_models/coco/densenetclsfier_best.pth')
+    orig_densenet = torchvision.models.densenet121(pretrained=True)
+    features = list(orig_densenet.features)
+    model = nn.Sequential(*features, nn.ReLU(inplace=True))
+    clsfier = SimpleClassifier(1024, args.n_classes)
 
 model.load_state_dict(model_dict)
 clsfier.load_state_dict(clsfier_dict)
@@ -60,4 +74,4 @@ for i, (images, path) in tqdm(enumerate(test_loader)):
 df = pd.DataFrame(results)
 
 # Save the DataFrame to a CSV file
-df.to_csv('submission_01.csv', index=False)
+df.to_csv('submission.csv', index=False)
