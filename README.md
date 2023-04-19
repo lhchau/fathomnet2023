@@ -26,8 +26,8 @@ python3 train.py --arch densenet --dataset coco --save_dir ./saved_models/
 
 Models located: `./saved_models/coco/`
 
-[Download models](https://drive.google.com/drive/folders/1lpgsys6uvw0g0ir8eas3pvv4bbjvcuoj?usp=sharing)
+[Download models](https://drive.google.com/drive/folders/1LPGsys6UvW0g0ir8eas3pVV4bBjVcuoj?usp=sharing)
 
 ```
-python3 pred.py
+python3 pred.py --arch resnet101
 ```
