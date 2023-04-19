@@ -8,6 +8,8 @@ from models.simple_classifier import *
 from utils.fathomnet_loader import *
 from utils.collate_fn import *
 
+to_np = lambda x: x.data.cpu().numpy()
+
 model_dict = torch.load('./saved_models/coco/densenet_bs80_epoch30.pth')
 clsfier_dict = torch.load('./saved_models/coco/densenetclsfier_bs80_epoch30.pth')
 
@@ -33,13 +35,14 @@ for i, (images, path) in tqdm(enumerate(test_loader)):
     preds = torch.sigmoid(nnOutputs).cuda()
     
     # categories
-    labels = torch.ones(preds.shape).cuda() * (preds >= 0.1)
+    labels = torch.ones(preds.shape).cuda() * (preds >= 0.001)
     
     # osd
-    E_f = torch.log(1+torch.exp(nnOutputs))
-    scores = torch.sum(E_f, dim=1)
-    if scores[0] > 1:
-        scores[0] = 1
+    nnOutputs = torch.log(1+torch.exp(nnOutputs))
+    scores = to_np(torch.sum(nnOutputs))
+    
+    if scores > 1:
+        scores = 1
 
     # Loop over the predictions and extract the indices where the value is 1
     for j in range(labels.shape[0]):
@@ -50,8 +53,8 @@ for i, (images, path) in tqdm(enumerate(test_loader)):
 		
         # Add the image and categories to the results list
         results.append({'id': path[0][:-4],
-                        'categories': ' '.join(categories),
-                        'osd': 1-scores[0]})
+                        'categories': '[' + ' '.join(categories) + ']', 
+                        'osd': round(1-scores, 1)})
         
 # Convert the results list to a Pandas DataFrame
 df = pd.DataFrame(results)
