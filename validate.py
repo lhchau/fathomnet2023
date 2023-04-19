@@ -59,19 +59,6 @@ if __name__ == '__main__':
     parser.add_argument('--n_classes', nargs='?', type=int, default=290)
     args = parser.parse_args()
 
-    # # Setup Dataloader
-    # normalize = torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-    #                                  std=[0.229, 0.224, 0.225])
-    # img_transform = torchvision.transforms.Compose([
-    #     torchvision.transforms.Resize((256, 256)),
-    #     torchvision.transforms.ToTensor(),
-    #     normalize,
-    # ])
-
-    # label_transform = torchvision.transforms.Compose([
-    #     ToLabel(),
-    # ])
-
     if args.dataset == 'coco':
         val_data = FathomNetLoader(root='./datasets/train', annFile='./datasets/val.json')
     else:
