@@ -318,6 +318,50 @@ def get_logits(loader, model, clsfier, args, k=20, name=None):
 
     return scores
 
+def get_logits_eval(loader, model, clsfier, args, k=20, name=None):
+    # print(args.save_path + name + ".npy", os.path.exists(args.save_path + name + ".npy"))
+    if not (os.path.exists(args.save_path + name + ".npy")):
+        logits_np = np.empty([0, args.n_classes])
+
+        with torch.no_grad():
+            for i, (images, path) in enumerate(loader):
+
+                images = Variable(images.cuda())
+                nnOutputs = model(images)
+                nnOutputs = clsfier(nnOutputs)
+
+                nnOutputs_np = to_np(nnOutputs.squeeze())
+                logits_np = np.vstack((logits_np, nnOutputs_np))
+
+        os.makedirs(args.save_path, exist_ok = True)
+        np.save(args.save_path + name, logits_np)
+
+    else:
+        logits_np = np.load(args.save_path + name + ".npy")
+
+    ## Compute the Score
+    logits = torch.from_numpy(logits_np).cuda()
+    outputs = torch.sigmoid(logits)
+    if args.ood == "logit":
+        if args.method == "max": scores = np.max(logits_np, axis=1)
+        if args.method == "sum": scores = np.sum(logits_np, axis=1)
+    elif args.ood == "energy":
+        E_f = torch.log(1+torch.exp(logits))
+        if args.method == "max": scores = to_np(torch.max(E_f, dim=1)[0])
+        if args.method == "sum": scores = to_np(torch.sum(E_f, dim=1))
+        if args.method == "topk":
+            scores = to_np(torch.sum(torch.topk(E_f, k=k, dim=1)[0], dim=1))
+    elif args.ood == "prob":
+        if args.method == "max": scores = np.max(to_np(outputs), axis=1)
+        if args.method == "sum": scores = np.sum(to_np(outputs),axis=1)
+    elif args.ood == "msp":
+        outputs = F.softmax(logits, dim=1)
+        scores = np.max(to_np(outputs), axis=1)
+    else:
+        scores = logits_np
+
+    return scores
+
 
 def get_localoutlierfactor_scores(val, test, out_scores):
     import sklearn.neighbors

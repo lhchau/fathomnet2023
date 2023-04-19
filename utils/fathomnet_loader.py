@@ -22,7 +22,6 @@ class FathomNetLoader(data.Dataset):
         self.ids = list(self.coco.imgs.keys())
         self.transform = transform
         self.target_transform = target_transform
-        self.path = ''
         self.split = self.root[-4:]
     
     def __getitem__(self, index):
@@ -46,7 +45,6 @@ class FathomNetLoader(data.Dataset):
             label[target] = 1
 
         path = coco.loadImgs(img_id)[0]['file_name']
-        self.path = path
 
         img = Image.open(os.path.join(self.root, path)).convert('RGB')
         if self.transform is not None:
@@ -55,7 +53,10 @@ class FathomNetLoader(data.Dataset):
         if self.target_transform is not None:
             label = self.target_transform(label)
 
-        return img, label
+        if self.split == 'eval':
+            return img, path
+        else:
+            return img, label
 
     def __len__(self):
         return len(self.ids)
