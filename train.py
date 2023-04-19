@@ -55,7 +55,7 @@ def train():
                                   {'params': clsfier.parameters()}], lr=args.l_rate)
 
     # define the scheduler
-    scheduler = OneCycleLR(optimizer, max_lr=0.01, epochs=args.n_epoch, steps_per_epoch=len(trainloader))
+    # scheduler = OneCycleLR(optimizer, max_lr=0.01, epochs=args.n_epoch, steps_per_epoch=len(trainloader))
     
     if args.load:
         model.load_state_dict(torch.load(args.save_dir + args.arch + ".pth"))
@@ -84,7 +84,7 @@ def train():
             loss.backward()
             optimizer.step()
             
-            scheduler.step()
+            # scheduler.step()
 
         # Validate
         mAP = validate.validate(args, model, clsfier, val_loader)
