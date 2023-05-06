@@ -27,8 +27,8 @@ def train():
         raise AssertionError
 
     args.n_classes = loader.n_classes
-    trainloader = data.DataLoader(loader, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True, collate_fn=coco_collate)
-    val_loader = data.DataLoader(val_data, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True, collate_fn=coco_collate)
+    trainloader = data.DataLoader(loader, batch_size=args.batch_size, num_workers=4, shuffle=True, pin_memory=False, collate_fn=coco_collate_train)
+    val_loader = data.DataLoader(val_data, batch_size=args.batch_size, num_workers=4, shuffle=True, pin_memory=False, collate_fn=coco_collate_val)
 
     print("number of images = ", len(loader))
     print("number of classes = ", args.n_classes, " architecture used = ", args.arch)
@@ -58,15 +58,14 @@ def train():
     # scheduler = OneCycleLR(optimizer, max_lr=0.01, epochs=args.n_epoch, steps_per_epoch=len(trainloader))
     
     if args.load:
-        model.load_state_dict(torch.load(args.save_dir + args.arch + ".pth"))
-        clsfier.load_state_dict(torch.load(args.save_dir + args.arch +'clsfier' + ".pth"))
+        model.load_state_dict(torch.load(args.save_dir + args.arch + "_best" + ".pth"))
+        clsfier.load_state_dict(torch.load(args.save_dir + args.arch +'clsfier_best' + ".pth"))
         print("Model loaded!")
 
     # unfreeze
     bceloss = nn.BCEWithLogitsLoss()
     model.train()
     clsfier.train()
-    
     best_mAP = 0.0
     for epoch in range(args.n_epoch):
         for i, (images, labels) in tqdm(enumerate(trainloader)):
@@ -102,11 +101,11 @@ if __name__ == '__main__':
                         help='Architecture to use densenet|resnet101')
     parser.add_argument('--dataset', type=str, default='pascal',
                         help='Dataset to use pascal|coco|nus-wide')
-    parser.add_argument('--n_epoch', type=int, default=1,
+    parser.add_argument('--n_epoch', type=int, default=200,
                         help='# of the epochs')
     parser.add_argument('--n_classes', type=int, default=290,
                         help='# of classes')
-    parser.add_argument('--batch_size', type=int, default=80,
+    parser.add_argument('--batch_size', type=int, default=100,
                         help='Batch Size')
     # batch_size 320 for resenet101
     parser.add_argument('--l_rate', type=float, default=1e-4,
