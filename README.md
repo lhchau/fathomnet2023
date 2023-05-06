@@ -1,5 +1,11 @@
 ## Download Fathomnet2023 dataset
 
+### Requirement
+
+```
+export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH
+```
+
 ### Train dataset
 
 ```
@@ -19,7 +25,7 @@ Requirement:
 - GPU
 
 ```
-python3 train.py --arch densenet --dataset coco --save_dir ./saved_models/
+python3 train.py --arch resnet101 --dataset coco --save_dir ./saved_models/
 ```
 
 ## Evaluation
