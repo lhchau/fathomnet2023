@@ -15,10 +15,19 @@ import json
 import requests
 import logging
 import argparse
-import progressbar
+from tqdm import tqdm
 import pandas as pd
 from shutil import copyfileobj
+import concurrent.futures
+from PIL import Image
 
+# def is_image_corrupted(image_path):
+#     try:
+#         with Image.open(image_path) as img:
+#             img.verify()
+#         return False
+#     except (IOError, SyntaxError):
+#         return True
 
 def download_imgs(imgs, outdir=None):
     """
@@ -38,22 +47,28 @@ def download_imgs(imgs, outdir=None):
         os.mkdir(outdir)
         logging.info(f"Created directory {outdir}")
 
-    flag = 0  # keep track of how many image downloaded
+    # flag = 0  # keep track of how many image downloaded
 
-    for name, url in progressbar.progressbar(imgs):
-        file_name = os.path.join(
-            outdir, name
-        )
+    def download_img(url, file_name):
+        resp = requests.get(url, stream=True)
+        resp.raw.decode_content = True
+        with open(file_name, 'wb') as f:
+            copyfileobj(resp.raw, f)
 
-        # only download if the image does not exist in the outdir
-        if not os.path.exists(file_name):
-            resp = requests.get(url, stream=True)
-            resp.raw.decode_content = True
-            with open(file_name, 'wb') as f:
-                copyfileobj(resp.raw, f)
-            flag += 1
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = []
 
-    logging.info(f"Downloaded {flag} new images to {outdir}")
+        for name, url in tqdm(imgs):
+            file_name = os.path.join(
+                outdir, name
+            )
+            if not os.path.exists(file_name):
+                futures.append(executor.submit(download_img, url, file_name))
+
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+
+    # logging.info(f"Downloaded {flag} new images to {outdir}")
 
 
 if __name__=="__main__":
